@@ -1,5 +1,12 @@
 namespace AuthService.Models;
 
+public enum Role
+{
+    User,
+    Admin
+
+}
+
 public class User
 {
     public Guid Id {get; set;} = Guid.NewGuid();
@@ -7,7 +14,8 @@ public class User
     public required string PasswordHash {get; set;} 
     public required string FirstName {get; set;} 
     public required string LastName {get; set;}
-    public string Role {get; private set;} = "user"; // private field restricts modification
+    public Role Role {get; private set;} = Role.User; // private field restricts modification
     public DateTime CreatedAt {get; private set;} = DateTime.UtcNow;
 
 }
+
