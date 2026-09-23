@@ -34,7 +34,7 @@ public class JwtService
 
             new Claim(
                 ClaimTypes.Role,
-                user.Role
+                user.Role.ToString()
             )
         };
 
