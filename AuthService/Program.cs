@@ -41,6 +41,17 @@ builder.Services
                 Encoding.UTF8.GetBytes(key)
             )
         };
+
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                // Get JWT from cookie
+                context.Token = context.Request.Cookies["jwt"];
+
+                return Task.CompletedTask;
+            }
+        };
     });
 
 builder.Services.AddAuthorization();
