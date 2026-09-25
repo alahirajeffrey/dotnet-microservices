@@ -1,3 +1,5 @@
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using AuthService.Data;
 using AuthService.DTOs;
 using AuthService.Models;
@@ -99,8 +101,16 @@ public class AuthController : ControllerBase
     [Authorize]
     public async Task<IActionResult> ChangePassword(ChangePasswordRequest request)
     {
-        // check if user exists
-        var user = await _db.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
+        var userId = User.FindFirstValue(JwtRegisteredClaimNames.Sub)
+            ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        var userEmail = User.FindFirstValue(JwtRegisteredClaimNames.Email)
+            ?? User.FindFirstValue(ClaimTypes.Email);
+
+        var user = await _db.Users.FirstOrDefaultAsync(u =>
+            (userId != null && u.Id.ToString() == userId) ||
+            (userEmail != null && u.Email == userEmail));
+
         if (user == null)
         {
             return BadRequest("User not found");
@@ -112,14 +122,17 @@ public class AuthController : ControllerBase
             return BadRequest("Invalid password");
         }
 
-        // hash new papssword and save
+        // hash new password and save
         user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
         await _db.SaveChangesAsync();
+
+        // remove token from cookies
+        Response.Cookies.Delete("jwt");
 
         return Ok(new
         {
             status = "Success",
-            message= "Password changed successfully"
+            message = "Password changed successfully"
         });
     }
 }
