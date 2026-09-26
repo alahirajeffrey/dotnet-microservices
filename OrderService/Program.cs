@@ -2,8 +2,8 @@ using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using ProductService.Data;
-using ProductService.Services;
+using OrderService.Data;
+using OrderService.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -11,15 +11,22 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddOpenApi();
 
-builder.Services.AddDbContext<ProductDbContext>(options =>
+builder.Services.AddHttpClient("ProductService", client =>
+{
+    client.BaseAddress = new Uri(
+        builder.Configuration["ProductService:BaseUrl"]
+            ?? "http://localhost:5103"
+    );
+});
+
+builder.Services.AddSingleton<RabbitMqLogPublisher>();
+
+builder.Services.AddDbContext<OrderDbContext>(options =>
     options.UseNpgsql(
         builder.Configuration.GetConnectionString("DefaultConnection")
-            ?? "Host=localhost;Port=5432;Database=productdb;Username=postgres;Password=password"
+            ?? "Host=localhost;Port=5432;Database=orderdb;Username=postgres;Password=password"
     )
 );
-
-builder.Services.AddSingleton<RedisService>();
-builder.Services.AddSingleton<RabbitMqLogPublisher>();
 
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -70,4 +77,3 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
-
