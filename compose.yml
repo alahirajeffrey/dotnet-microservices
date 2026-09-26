@@ -7,7 +7,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
@@ -16,7 +16,7 @@ services:
     container_name: redis
     restart: always
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
 
@@ -28,12 +28,162 @@ services:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
+
+  mongodb:
+    image: mongo:latest
+    container_name: mongodb
+    restart: always
+    ports:
+      - "${MONGODB_PORT:-27017}:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGODB_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_ROOT_PASSWORD}
+      MONGO_INITDB_DATABASE: ${MONGODB_DATABASE:-logdb}
+    volumes:
+      - mongo_data:/data/db
+
+  gateway:
+    build:
+      context: .
+      dockerfile: Gateway/Dockerfile
+    container_name: gateway
+    restart: unless-stopped
+    depends_on:
+      - authservice
+      - productservice
+      - orderservice
+      - paymentservice
+      - logservice
+    ports:
+      - "${GATEWAY_PORT:-5000}:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ASPNETCORE_URLS: ${ASPNETCORE_URLS:-http://+:8080}
+
+  authservice:
+    build:
+      context: .
+      dockerfile: AuthService/Dockerfile
+    container_name: authservice
+    restart: unless-stopped
+    depends_on:
+      - postgres
+    ports:
+      - "${AUTH_SERVICE_PORT:-5284}:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ASPNETCORE_URLS: ${ASPNETCORE_URLS:-http://+:8080}
+      ConnectionStrings__DefaultConnection: Host=${POSTGRES_HOST:-postgres};Port=${POSTGRES_PORT:-5432};Database=${AUTH_DB_NAME:-authdb};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+      RabbitMQ__HostName: ${RABBITMQ_HOST:-rabbitmq}
+      RabbitMQ__UserName: ${RABBITMQ_DEFAULT_USER}
+      RabbitMQ__Password: ${RABBITMQ_DEFAULT_PASS}
+      Jwt__Key: ${JWT_KEY:-O9tFWSYaGPz9jf0yA3FRH5b4BU4j+6m1O8koAqY/hNIguKUfOaw1z+EJvydAXeR7E+QHy2Mfz0UVkWK0lFB+ew==}
+      Jwt__Issuer: ${JWT_ISSUER:-AuthService}
+      Jwt__Audience: ${JWT_AUDIENCE:-Dotnet-Microservices}
+
+  productservice:
+    build:
+      context: .
+      dockerfile: ProductService/Dockerfile
+    container_name: productservice
+    restart: unless-stopped
+    depends_on:
+      - postgres
+      - redis
+    ports:
+      - "${PRODUCT_SERVICE_PORT:-5103}:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ASPNETCORE_URLS: ${ASPNETCORE_URLS:-http://+:8080}
+      ConnectionStrings__DefaultConnection: Host=${POSTGRES_HOST:-postgres};Port=${POSTGRES_PORT:-5432};Database=${PRODUCT_DB_NAME:-productdb};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+      Redis__ConnectionString: ${REDIS_HOST:-redis}:${REDIS_PORT:-6379}
+      RabbitMQ__HostName: ${RABBITMQ_HOST:-rabbitmq}
+      RabbitMQ__UserName: ${RABBITMQ_DEFAULT_USER}
+      RabbitMQ__Password: ${RABBITMQ_DEFAULT_PASS}
+      InternalApi__Secret: ${INTERNAL_API_SECRET:-internal-secret}
+      Jwt__Key: ${JWT_KEY:-O9tFWSYaGPz9jf0yA3FRH5b4BU4j+6m1O8koAqY/hNIguKUfOaw1z+EJvydAXeR7E+QHy2Mfz0UVkWK0lFB+ew==}
+      Jwt__Issuer: ${JWT_ISSUER:-AuthService}
+      Jwt__Audience: ${JWT_AUDIENCE:-Dotnet-Microservices}
+
+  orderservice:
+    build:
+      context: .
+      dockerfile: OrderService/Dockerfile
+    container_name: orderservice
+    restart: unless-stopped
+    depends_on:
+      - postgres
+      - productservice
+    ports:
+      - "${ORDER_SERVICE_PORT:-5150}:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ASPNETCORE_URLS: ${ASPNETCORE_URLS:-http://+:8080}
+      ConnectionStrings__DefaultConnection: Host=${POSTGRES_HOST:-postgres};Port=${POSTGRES_PORT:-5432};Database=${ORDER_DB_NAME:-orderdb};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+      ProductService__BaseUrl: http://${PRODUCT_SERVICE_HOST:-productservice}:${SERVICE_INTERNAL_PORT:-8080}
+      RabbitMQ__HostName: ${RABBITMQ_HOST:-rabbitmq}
+      RabbitMQ__UserName: ${RABBITMQ_DEFAULT_USER}
+      RabbitMQ__Password: ${RABBITMQ_DEFAULT_PASS}
+      InternalApi__Secret: ${INTERNAL_API_SECRET:-internal-secret}
+      Jwt__Key: ${JWT_KEY:-O9tFWSYaGPz9jf0yA3FRH5b4BU4j+6m1O8koAqY/hNIguKUfOaw1z+EJvydAXeR7E+QHy2Mfz0UVkWK0lFB+ew==}
+      Jwt__Issuer: ${JWT_ISSUER:-AuthService}
+      Jwt__Audience: ${JWT_AUDIENCE:-Dotnet-Microservices}
+
+  paymentservice:
+    build:
+      context: .
+      dockerfile: PaymentService/Dockerfile
+    container_name: paymentservice
+    restart: unless-stopped
+    depends_on:
+      - postgres
+      - orderservice
+    ports:
+      - "${PAYMENT_SERVICE_PORT:-5117}:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ASPNETCORE_URLS: ${ASPNETCORE_URLS:-http://+:8080}
+      ConnectionStrings__DefaultConnection: Host=${POSTGRES_HOST:-postgres};Port=${POSTGRES_PORT:-5432};Database=${PAYMENT_DB_NAME:-paymentdb};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+      OrderService__BaseUrl: http://${ORDER_SERVICE_HOST:-orderservice}:${SERVICE_INTERNAL_PORT:-8080}
+      RabbitMQ__HostName: ${RABBITMQ_HOST:-rabbitmq}
+      RabbitMQ__UserName: ${RABBITMQ_DEFAULT_USER}
+      RabbitMQ__Password: ${RABBITMQ_DEFAULT_PASS}
+      Paystack__SecretKey: ${PAYSTACK_SECRET_KEY:-your_paystack_secret_key}
+      Paystack__CallbackUrl: http://localhost:${PAYMENT_SERVICE_PORT:-5117}/api/webhook/paystack
+      InternalApi__Secret: ${INTERNAL_API_SECRET:-internal-secret}
+      Jwt__Key: ${JWT_KEY:-O9tFWSYaGPz9jf0yA3FRH5b4BU4j+6m1O8koAqY/hNIguKUfOaw1z+EJvydAXeR7E+QHy2Mfz0UVkWK0lFB+ew==}
+      Jwt__Issuer: ${JWT_ISSUER:-AuthService}
+      Jwt__Audience: ${JWT_AUDIENCE:-Dotnet-Microservices}
+
+  logservice:
+    build:
+      context: .
+      dockerfile: LogService/Dockerfile
+    container_name: logservice
+    restart: unless-stopped
+    depends_on:
+      - mongodb
+      - rabbitmq
+    ports:
+      - "${LOG_SERVICE_PORT:-5200}:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ASPNETCORE_URLS: ${ASPNETCORE_URLS:-http://+:8080}
+      MongoDb__Host: ${MONGODB_HOST:-mongodb}
+      MongoDb__Port: ${MONGODB_PORT:-27017}
+      MongoDb__Username: ${MONGODB_USERNAME}
+      MongoDb__Password: ${MONGODB_ROOT_PASSWORD}
+      MongoDb__DatabaseName: ${MONGODB_DATABASE:-logdb}
+      RabbitMQ__HostName: ${RABBITMQ_HOST:-rabbitmq}
+      RabbitMQ__UserName: ${RABBITMQ_DEFAULT_USER}
+      RabbitMQ__Password: ${RABBITMQ_DEFAULT_PASS}
 
 volumes:
   postgres_data:
   redis_data:
   rabbitmq_data:
+  mongo_data:
