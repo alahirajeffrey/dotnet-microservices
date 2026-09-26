@@ -57,6 +57,7 @@ builder.Services
 builder.Services.AddAuthorization();
 
 builder.Services.AddScoped<JwtService>();
+builder.Services.AddSingleton<RabbitMqLogPublisher>();
 
 builder.Services.AddControllers();
 
