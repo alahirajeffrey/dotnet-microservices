@@ -11,16 +11,18 @@ using Microsoft.EntityFrameworkCore;
 namespace AuthService.Controllers;
 
 [ApiController]
-[Route("api/v1/auth")]
+[Route("api/v1/[controller]")]
 public class AuthController : ControllerBase
 {   
     private readonly AuthDbContext _db;
     private readonly JwtService _jwtService;
+    private readonly RabbitMqLogPublisher _logPublisher;
 
-    public AuthController(AuthDbContext db, JwtService jwtService)
+    public AuthController(AuthDbContext db, JwtService jwtService, RabbitMqLogPublisher logPublisher)
     {
         _db = db;
         _jwtService = jwtService;
+        _logPublisher = logPublisher;
     }
 
     [HttpPost("register")]
@@ -47,6 +49,13 @@ public class AuthController : ControllerBase
         // save new user and return response
         _db.Users.Add(newUser);
         await _db.SaveChangesAsync();
+
+        await _logPublisher.PublishAsync(
+            "AuthService",
+            "UserRegistered",
+            $"User {newUser.Email} registered successfully",
+            new { userId = newUser.Id, email = newUser.Email });
+
         return Ok(new
         {
             status= "Success",
@@ -76,6 +85,12 @@ public class AuthController : ControllerBase
         {
             HttpOnly = true
         });
+
+        await _logPublisher.PublishAsync(
+            "AuthService",
+            "UserLoggedIn",
+            $"User {user.Email} logged in successfully",
+            new { userId = user.Id, email = user.Email });
 
         return Ok(new
         {
@@ -128,6 +143,12 @@ public class AuthController : ControllerBase
 
         // remove token from cookies
         Response.Cookies.Delete("jwt");
+
+        await _logPublisher.PublishAsync(
+            "AuthService",
+            "PasswordChanged",
+            $"Password changed for user {user.Email}",
+            new { userId = user.Id, email = user.Email });
 
         return Ok(new
         {
