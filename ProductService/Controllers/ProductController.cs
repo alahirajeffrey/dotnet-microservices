@@ -15,11 +15,15 @@ public class ProductController : ControllerBase
 {
     private readonly ProductDbContext _context;
     private readonly RedisService _redisService;
+    private readonly IConfiguration _configuration;
+    private readonly RabbitMqLogPublisher _logPublisher;
 
-    public ProductController(ProductDbContext context, RedisService redisService)
+    public ProductController(ProductDbContext context, RedisService redisService, IConfiguration configuration, RabbitMqLogPublisher logPublisher)
     {
         _context = context;
         _redisService = redisService;
+        _configuration = configuration;
+        _logPublisher = logPublisher;
     }
 
     [HttpPost]
@@ -44,6 +48,12 @@ public class ProductController : ControllerBase
 
         var cacheKey = $"product:{product.Id}";
         await _redisService.SetAsync(cacheKey, product, TimeSpan.FromHours(1));
+
+        await _logPublisher.PublishAsync(
+            "ProductService",
+            "ProductCreated",
+            $"Product {product.Name} created",
+            new { productId = product.Id, productName = product.Name, quantity = product.Quantity });
 
         return CreatedAtAction(nameof(GetProductById), new { id = product.Id }, product);
     }
@@ -109,6 +119,81 @@ public class ProductController : ControllerBase
         return Ok(response);
     }
 
+    [HttpPost("by-ids")]
+    public async Task<ActionResult<List<Product>>> GetProductsByIds([FromBody] List<Guid> productIds)
+    {
+        if (productIds == null || productIds.Count == 0)
+        {
+            return BadRequest("At least one product id is required.");
+        }
+
+        var distinctIds = productIds.Distinct().ToList();
+
+        var products = await _context.Products
+            .AsNoTracking()
+            .Where(p => distinctIds.Contains(p.Id))
+            .ToListAsync();
+
+        if (products.Count == 0)
+        {
+            return NotFound();
+        }
+
+        return Ok(products);
+    }
+
+    [HttpPost("reduce-stock")]
+    [AllowAnonymous]
+    public async Task<ActionResult> ReduceStock([FromBody] List<ReduceProductStockRequest> requests)
+    {
+        var internalSecret = HttpContext.Request.Headers["X-Internal-Secret"].ToString();
+        var expectedSecret = _configuration["InternalApi:Secret"] ?? "internal-secret";
+
+        if (!string.Equals(internalSecret, expectedSecret, StringComparison.Ordinal))
+        {
+            return Unauthorized();
+        }
+
+        if (requests.Count == 0)
+        {
+            return BadRequest("No products were provided to reduce.");
+        }
+
+        foreach (var request in requests)
+        {
+            if (request.Quantity <= 0)
+            {
+                return BadRequest("Product quantity to reduce must be greater than zero.");
+            }
+
+            var product = await _context.Products.FirstOrDefaultAsync(p => p.Id == request.ProductId);
+            if (product is null)
+            {
+                return NotFound($"Product with id {request.ProductId} was not found.");
+            }
+
+
+            if (product.Quantity < request.Quantity)
+            {
+                return BadRequest($"Not enough stock for product '{product.Name}'.");
+            }
+
+            product.Quantity -= request.Quantity;
+            product.UpdatedAt = DateTime.UtcNow;
+            await _redisService.SetAsync($"product:{product.Id}", product, TimeSpan.FromHours(1));
+        }
+
+        await _context.SaveChangesAsync();
+
+        await _logPublisher.PublishAsync(
+            "ProductService",
+            "InventoryReduced",
+            $"Stock reduced for {requests.Count} product(s)",
+            new { itemCount = requests.Count, updates = requests });
+
+        return Ok(new { success = true });
+    }
+
     [HttpDelete("{id:guid}")]
     [Authorize(Roles = "Admin")]
     public async Task<ActionResult> DeleteProduct(Guid id)
@@ -125,6 +210,12 @@ public class ProductController : ControllerBase
 
         var cacheKey = $"product:{id}";
         await _redisService.RemoveAsync(cacheKey);
+
+        await _logPublisher.PublishAsync(
+            "ProductService",
+            "ProductDeleted",
+            $"Product {product.Name} deleted",
+            new { productId = product.Id, productName = product.Name });
 
         return NoContent();
     }
@@ -170,6 +261,12 @@ public class ProductController : ControllerBase
         var cacheKey = $"product:{id}";
         await _redisService.SetAsync(cacheKey, product, TimeSpan.FromHours(1));
 
+        await _logPublisher.PublishAsync(
+            "ProductService",
+            "ProductUpdated",
+            $"Product {product.Name} updated",
+            new { productId = product.Id, productName = product.Name, quantity = product.Quantity });
+
         return Ok(product);
     }
 }
@@ -181,4 +278,10 @@ public class PagedResult<T>
     public int PageSize { get; set; }
     public int TotalCount { get; set; }
     public int TotalPages { get; set; }
+}
+
+public class ReduceProductStockRequest
+{
+    public Guid ProductId { get; set; }
+    public int Quantity { get; set; }
 }
