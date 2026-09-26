@@ -48,6 +48,13 @@ public class OrdersController : ControllerBase
         var client = _httpClientFactory.CreateClient("ProductService");
         var authorizationToken = HttpContext.Request.Headers.Authorization.ToString();
 
+        if (string.IsNullOrWhiteSpace(authorizationToken) &&
+            HttpContext.Request.Cookies.TryGetValue("jwt", out var cookieToken) &&
+            !string.IsNullOrWhiteSpace(cookieToken))
+        {
+            authorizationToken = $"Bearer {cookieToken}";
+        }
+
         var order = new Order
         {
             Id = Guid.NewGuid(),
