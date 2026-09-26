@@ -35,12 +35,12 @@ public class RabbitMqLogPublisher
 
         var payload = new
         {
-            Id = Guid.NewGuid(),
+            Id = Guid.NewGuid().ToString("N"),
             ServiceName = serviceName,
             EventName = eventName,
             Message = message,
             Level = "Information",
-            Details = details,
+            Details = details is null ? null : JsonSerializer.Serialize(details),
             UserId = userId,
             Timestamp = DateTime.UtcNow
         };
