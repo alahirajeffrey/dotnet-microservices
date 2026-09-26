@@ -50,6 +50,13 @@ public class PaymentController : ControllerBase
         );
 
         var authHeader = Request.Headers.Authorization.ToString();
+        if (string.IsNullOrWhiteSpace(authHeader) &&
+            Request.Cookies.TryGetValue("jwt", out var cookieToken) &&
+            !string.IsNullOrWhiteSpace(cookieToken))
+        {
+            authHeader = $"Bearer {cookieToken}";
+        }
+
         if (!string.IsNullOrWhiteSpace(authHeader))
         {
             orderRequest.Headers.Authorization = new AuthenticationHeaderValue(
