@@ -1,93 +1,168 @@
 # .NET Microservices Project
 
-This repository contains a small ASP.NET Core microservices sample built with .NET 10. The solution is organized into three independent services that can be developed, launched, and tested separately while sharing the same infrastructure setup.
+This repository contains a .NET 10 microservices solution for authentication, products, orders, payments, event logging, and API routing. The stack is built around ASP.NET Core services, PostgreSQL, Redis, RabbitMQ, MongoDB, and a YARP-based API gateway.
 
-## Project overview
-
-The solution currently contains the following services:
+## Services in the solution
 
 - AuthService
-  - Handles authentication and authorization of users
+  - User authentication, registration, login, and JWT generation
 
 - ProductService
-  - Handle product-related domain logic
+  - Product CRUD, pagination, Redis cache-aside strategy, and stock updates
+
+- OrderService
+  - Order creation, retrieval, pagination, and status updates
 
 - PaymentService
-  - Handle payment/business processing concerns
+  - Paystack payment initialization, webhook verification, and order/payment state updates
 
-## Dependencies
+- LogService
+  - RabbitMQ consumer that stores log events in MongoDB
 
-### Infrastructure dependencies
+- Gateway
+  - YARP reverse proxy that routes incoming requests to the appropriate backend service
 
-The Docker Compose file provisions the following backing services:
+## Infrastructure
+
+The Docker Compose setup starts the following backing services:
 
 - PostgreSQL 16
 - Redis 7
 - RabbitMQ 3 with management UI
+- MongoDB 7
 
-These are exposed on the following local ports:
+The main local ports are:
 
-- PostgreSQL: http://localhost:5432
-- Redis: http://localhost:6379
-- RabbitMQ AMQP: http://localhost:5672
-- RabbitMQ management UI: http://localhost:15672
-
-## How to start the project
-
-### 1. Restore dependencies
-
-```bash
-dotnet restore
-```
-
-### 2. Start infrastructure services
-
-```bash
-docker compose up -d
-```
-
-This starts PostgreSQL, Redis, and RabbitMQ in the background.
-
-### 3. Run the services
-
-Each service can be started independently from the project root:
-
-```bash
-dotnet run --project AuthService/AuthService.csproj
-```
-
-```bash
-dotnet run --project ProductService/ProductService.csproj
-```
-
-```bash
-dotnet run --project PaymentService/PaymentService.csproj
-```
-
-### Local service URLs
-
-The launch profiles are configured as follows:
-
+- PostgreSQL: localhost:5432
+- Redis: localhost:6379
+- RabbitMQ AMQP: localhost:5672
+- RabbitMQ UI: localhost:15672
+- MongoDB: mongodb://localhost:27017
+- Gateway: http://localhost:5000
 - AuthService: http://localhost:5284
 - ProductService: http://localhost:5103
+- OrderService: http://localhost:5150
 - PaymentService: http://localhost:5117
+- LogService: http://localhost:5200
 
-The HTTPS endpoints are also configured in each service's `launchSettings.json` file.
+## Environment configuration
 
-## OpenAPI and sample endpoints
+Create a `.env` file in the project root with the required settings before starting Docker Compose.
 
-OpenAPI documents are available in development mode via the standard ASP.NET Core OpenAPI route.
+Example:
 
-## How to test the project
+```bash
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=postgres
+RABBITMQ_DEFAULT_USER=guest
+RABBITMQ_DEFAULT_PASS=guest
+JWT_KEY=your_jwt_key_here
+JWT_ISSUER=AuthService
+JWT_AUDIENCE=Dotnet-Microservices
+INTERNAL_API_SECRET=internal-secret
+PAYSTACK_SECRET_KEY=your_paystack_secret_key
+```
 
-### Build the solution
+These values are used by the Docker service definitions in [compose.yml](compose.yml).
+
+## Start the full stack
+
+From the project root, run:
+
+```bash
+docker compose up -d --build
+```
+
+This starts the databases, messaging infrastructure, gateway, and all application services.
+
+To check the running containers:
+
+```bash
+docker compose ps
+```
+
+To stop the stack:
+
+```bash
+docker compose down
+```
+
+To remove volumes too:
+
+```bash
+docker compose down -v
+```
+
+## Start the stack without PostgreSQL and MongoDB
+
+A helper script is included for starting the lightweight runtime without the database-heavy services:
+
+```bash
+chmod +x start-services-without-db.sh
+./start-services-without-db.sh
+```
+
+This script starts the services that do not require PostgreSQL and MongoDB, including:
+
+- Redis
+- RabbitMQ
+- Gateway
+- AuthService
+- ProductService
+- OrderService
+- PaymentService
+- LogService
+
+## Gateway usage
+
+All external requests can be routed through the gateway on port 5000. The gateway is configured with YARP routes that forward traffic to the appropriate microservices.
+
+Example:
+
+```bash
+http://localhost:5000/auth/...
+http://localhost:5000/products/...
+http://localhost:5000/orders/...
+http://localhost:5000/payments/...
+```
+
+## Useful Docker commands
+
+Build the images:
+
+```bash
+docker compose build
+```
+
+View logs for a specific service:
+
+```bash
+docker compose logs -f productservice
+```
+
+Rebuild and restart a single service:
+
+```bash
+docker compose up -d --build productservice
+```
+
+## Build and test
+
+Build the solution:
 
 ```bash
 dotnet build microservices.slnx
 ```
 
-### Run automated tests
+Run the tests:
 
 ```bash
 dotnet test microservices.slnx
 ```
+
+## Notes
+
+- Product caching uses Redis with a one-hour expiry for selected product reads.
+- Log events are published to RabbitMQ and consumed by LogService for persistence in MongoDB.
+- Payment webhooks are verified using the Paystack signature before processing.
+- The API gateway centralizes external routing and reduces direct backend exposure.
