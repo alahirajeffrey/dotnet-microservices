@@ -35,6 +35,8 @@ builder.Services
         var key = builder.Configuration["Jwt:Key"]
             ?? throw new InvalidOperationException("JWT key not configured");
 
+        options.MapInboundClaims = false;
+
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
