@@ -14,7 +14,7 @@ public class User
     public required string PasswordHash {get; set;} 
     public required string FirstName {get; set;} 
     public required string LastName {get; set;}
-    public Role Role {get; private set;} = Role.User; // private field restricts modification
+    public Role Role {get; set;} = Role.User;
     public DateTime CreatedAt {get; private set;} = DateTime.UtcNow;
 
 }
