@@ -1,5 +1,6 @@
 using System.Text;
 using AuthService.Data;
+using AuthService.Models;
 using AuthService.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
@@ -65,6 +66,35 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
+
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+    await db.Database.MigrateAsync();
+
+    var adminEmail = builder.Configuration["ADMIN_EMAIL"];
+    var adminPassword = builder.Configuration["ADMIN_PASSWORD"];
+
+    if (!string.IsNullOrWhiteSpace(adminEmail) && !string.IsNullOrWhiteSpace(adminPassword))
+    {
+        var existingAdmin = await db.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == adminEmail.Trim().ToLower());
+
+        if (existingAdmin is null)
+        {
+            var adminUser = new User
+            {
+                FirstName = "System",
+                LastName = "Admin",
+                Email = adminEmail.Trim(),
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(adminPassword.Trim()),
+                Role = Role.Admin
+            };
+
+            db.Users.Add(adminUser);
+            await db.SaveChangesAsync();
+        }
+    }
+}
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
