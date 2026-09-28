@@ -46,6 +46,58 @@ services:
     volumes:
       - mongo_data:/data/db
 
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.110.0
+    container_name: otel-collector
+    restart: unless-stopped
+    entrypoint: ["/otelcol-contrib"]
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+    environment:
+      OTEL_COLLECTOR_GRPC_PORT: 4317
+      OTEL_COLLECTOR_HTTP_PORT: 4318
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml:ro
+    depends_on:
+      - tempo
+
+  tempo:
+    image: grafana/tempo:2.6.1
+    container_name: tempo
+    restart: unless-stopped
+    command:
+      [
+        "/bin/sh",
+        "-c",
+        "envsubst < /etc/tempo.yaml > /tmp/tempo.yaml && /tempo -config.file=/tmp/tempo.yaml",
+      ]
+    ports:
+      - "3200:3200"
+      - "4317:4317"
+      - "4318:4318"
+    environment:
+      TEMPO_PORT: 3200
+      TEMPO_OTLP_GRPC_PORT: 4317
+      TEMPO_OTLP_HTTP_PORT: 4318
+    volumes:
+      - ./tempo.yaml:/etc/tempo.yaml:ro
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: grafana
+    restart: unless-stopped
+    depends_on:
+      - tempo
+    ports:
+      - "${GRAFANA_PORT:-3000}:${GRAFANA_PORT:-3000}"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+
   gateway:
     build:
       context: .
@@ -58,11 +110,13 @@ services:
       - orderservice
       - paymentservice
       - logservice
+      - otel-collector
     ports:
       - "${GATEWAY_PORT:-5000}:8080"
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
       ASPNETCORE_URLS: ${ASPNETCORE_URLS:-http://+:8080}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4317}
 
   authservice:
     build:
@@ -77,6 +131,7 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
       ASPNETCORE_URLS: ${ASPNETCORE_URLS:-http://+:8080}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4317}
       ConnectionStrings__DefaultConnection: Host=${POSTGRES_HOST:-postgres};Port=${POSTGRES_PORT:-5432};Database=${AUTH_DB_NAME:-authdb};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
       RabbitMQ__HostName: ${RABBITMQ_HOST:-rabbitmq}
       RabbitMQ__UserName: ${RABBITMQ_DEFAULT_USER}
@@ -99,6 +154,7 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
       ASPNETCORE_URLS: ${ASPNETCORE_URLS:-http://+:8080}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4317}
       ConnectionStrings__DefaultConnection: Host=${POSTGRES_HOST:-postgres};Port=${POSTGRES_PORT:-5432};Database=${PRODUCT_DB_NAME:-productdb};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
       Redis__ConnectionString: ${REDIS_HOST:-redis}:${REDIS_PORT:-6379}
       RabbitMQ__HostName: ${RABBITMQ_HOST:-rabbitmq}
@@ -123,6 +179,7 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
       ASPNETCORE_URLS: ${ASPNETCORE_URLS:-http://+:8080}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4317}
       ConnectionStrings__DefaultConnection: Host=${POSTGRES_HOST:-postgres};Port=${POSTGRES_PORT:-5432};Database=${ORDER_DB_NAME:-orderdb};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
       ProductService__BaseUrl: http://${PRODUCT_SERVICE_HOST:-productservice}:${SERVICE_INTERNAL_PORT:-8080}
       RabbitMQ__HostName: ${RABBITMQ_HOST:-rabbitmq}
@@ -147,6 +204,7 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
       ASPNETCORE_URLS: ${ASPNETCORE_URLS:-http://+:8080}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4317}
       ConnectionStrings__DefaultConnection: Host=${POSTGRES_HOST:-postgres};Port=${POSTGRES_PORT:-5432};Database=${PAYMENT_DB_NAME:-paymentdb};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
       OrderService__BaseUrl: http://${ORDER_SERVICE_HOST:-orderservice}:${SERVICE_INTERNAL_PORT:-8080}
       RabbitMQ__HostName: ${RABBITMQ_HOST:-rabbitmq}
@@ -173,6 +231,7 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
       ASPNETCORE_URLS: ${ASPNETCORE_URLS:-http://+:8080}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4317}
       MongoDb__Host: ${MONGODB_HOST:-mongodb}
       MongoDb__Port: ${MONGODB_PORT:-27017}
       MongoDb__Username: ${MONGODB_USERNAME}
