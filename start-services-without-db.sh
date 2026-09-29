@@ -11,6 +11,9 @@ docker compose up -d --build \
   productservice \
   orderservice \
   paymentservice \
-  logservice
+  logservice \
+  otel-collector \
+  grafana \
+  tempo \
 
 echo "Started microservice stack without postgres and mongodb."
