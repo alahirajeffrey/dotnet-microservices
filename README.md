@@ -166,3 +166,11 @@ dotnet test microservices.slnx
 - Log events are published to RabbitMQ and consumed by LogService for persistence in MongoDB.
 - Payment webhooks are verified using the Paystack signature before processing.
 - The API gateway centralizes external routing and reduces direct backend exposure.
+
+## Todo
+
+- Add indexes to database
+- Ensure all environment variables are gotten from the environment especially the otel exporter env
+- Ensure migration runs whenever all the services start
+- Extend opentelemetry to include database calls as well as external API calls
+- Review the startup scripts to ensure the proper directories are set

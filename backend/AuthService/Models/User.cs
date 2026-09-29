@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore;
+
 namespace AuthService.Models;
 
 public enum Role
@@ -7,6 +9,7 @@ public enum Role
 
 }
 
+// [Index(nameof(Email), IsUnique =true)]
 public class User
 {
     public Guid Id {get; set;} = Guid.NewGuid();

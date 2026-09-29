@@ -2,7 +2,7 @@ namespace PaymentService.Models;
 
 public class Payment
 {
-    public Guid Id { get; set; }
+    public Guid Id { get; set; } = Guid.NewGuid();
 
     public Guid OrderId { get; set; }
 
