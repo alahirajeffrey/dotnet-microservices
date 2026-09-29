@@ -79,6 +79,7 @@ builder.Services
         };
     });
 
+
 builder.Services.AddAuthorization();
 
 builder.Services.AddControllers();
@@ -87,6 +88,14 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
+
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<OrderDbContext>();
+    await db.Database.MigrateAsync();
+
+}
+
 
 if (app.Environment.IsDevelopment())
 {
