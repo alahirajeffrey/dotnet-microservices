@@ -27,6 +27,7 @@ mkdir -p "$LOG_DIR"
 echo "Starting infrastructure services..."
 
 docker compose up -d postgres redis rabbitmq mongodb otel-collector tempo grafana --force-recreate
+sleep 5
 
 echo "Starting application services"
 cd backend
