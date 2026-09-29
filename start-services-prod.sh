@@ -16,4 +16,4 @@ docker compose up -d --build \
   grafana \
   tempo \
 
-echo "Started microservice stack without postgres and mongodb."
+echo "Started microservices"
