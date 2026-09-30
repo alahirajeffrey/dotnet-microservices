@@ -30,6 +30,9 @@ The Docker Compose setup starts the following backing services:
 - Redis 7
 - RabbitMQ 3 with management UI
 - MongoDB 7
+- OpenTelemetry Collector for receiving and forwarding traces
+- Grafana Tempo for trace storage and querying
+- Grafana for exploring traces
 
 The main local ports are:
 
@@ -44,6 +47,26 @@ The main local ports are:
 - OrderService: http://localhost:5150
 - PaymentService: http://localhost:5117
 - LogService: http://localhost:5200
+- Grafana: http://localhost:${GRAFANA_PORT}
+- Tempo query API: http://localhost:${TEMPO_PORT}
+- OpenTelemetry Collector OTLP/gRPC: localhost:${OTEL_COLLECTOR_GRPC_PORT}
+- OpenTelemetry Collector OTLP/HTTP: localhost:${OTEL_COLLECTOR_HTTP_PORT}
+
+## View traces in Grafana
+
+The application services export traces to the OpenTelemetry Collector. The Collector accepts OTLP over gRPC and HTTP, then forwards traces to Tempo. Grafana is provisioned with Tempo as its default datasource and connects to it at `http://tempo:3200` over the Compose network.
+
+The traces include ASP.NET Core requests, outgoing HTTP requests, PostgreSQL operations from EF Core, and LogService MongoDB operations. Tempo stores trace data in the `tempo-data` Docker volume and is configured to retain blocks for one hour.
+
+To view traces:
+
+1. Start the stack from the repository root with `docker compose up -d --build`.
+2. Send requests to the gateway or services to generate activity. Traces appear only after requests have run.
+3. Open `http://localhost:${GRAFANA_PORT}` and sign in with the `GRAFANA_ADMIN_USER` and `GRAFANA_ADMIN_PASSWORD` values from your `.env` file.
+4. Open **Explore**, select the **Tempo** datasource, and use the **Search** view to select a service and run the trace search.
+5. Select a result to inspect its spans, timing, and service-to-service calls. Database spans appear under the request trace that caused the database operation.
+
+Inside Compose, application exporters use `http://otel-collector:4317` by default. `OTEL_EXPORTER_OTLP_ENDPOINT` can override this when using a different collector. The host-side Grafana and Collector ports are controlled by `GRAFANA_PORT`, `OTEL_COLLECTOR_GRPC_PORT`, and `OTEL_COLLECTOR_HTTP_PORT` in `.env`.
 
 ## Start the full stack
 
@@ -152,3 +175,4 @@ dotnet test microservices.slnx
 - add git action that runs sast and dast when a push is made
 - write terraform to deploy backend to aws (use localstack to test)
 - write git action to deploy code
+- Use image numbers for docker images
