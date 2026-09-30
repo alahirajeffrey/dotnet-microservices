@@ -42,6 +42,7 @@ The main local ports are:
 - RabbitMQ UI: localhost:15672
 - MongoDB: mongodb://localhost:27017
 - Gateway: http://localhost:5000
+- Frontend: http://localhost:5173
 - AuthService: http://localhost:5284
 - ProductService: http://localhost:5103
 - OrderService: http://localhost:5150
@@ -89,6 +90,8 @@ To stop the stack:
 ```bash
 docker compose down
 ```
+
+The production startup script also builds and starts the frontend container. For the local script, the React development server starts alongside the backend services. Configure `FRONTEND_PORT`, `FRONTEND_ORIGIN`, and `VITE_API_BASE_URL` in `.env` when using non-default ports or hosts.
 
 To remove volumes too:
 
