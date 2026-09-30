@@ -30,6 +30,7 @@ The Docker Compose setup starts the following backing services:
 - Redis 7
 - RabbitMQ 3 with management UI
 - MongoDB 7
+- LocalStack S3 for local object-storage testing
 - OpenTelemetry Collector for receiving and forwarding traces
 - Grafana Tempo for trace storage and querying
 - Grafana for exploring traces
@@ -41,6 +42,7 @@ The main local ports are:
 - RabbitMQ AMQP: localhost:5672
 - RabbitMQ UI: localhost:15672
 - MongoDB: mongodb://localhost:27017
+- LocalStack S3 endpoint: http://localhost:${LOCALSTACK_PORT}
 - Gateway: http://localhost:5000
 - Frontend: http://localhost:5173
 - AuthService: http://localhost:5284
@@ -69,6 +71,25 @@ To view traces:
 
 Inside Compose, application exporters use `http://otel-collector:4317` by default. `OTEL_EXPORTER_OTLP_ENDPOINT` can override this when using a different collector. The host-side Grafana and Collector ports are controlled by `GRAFANA_PORT`, `OTEL_COLLECTOR_GRPC_PORT`, and `OTEL_COLLECTOR_HTTP_PORT` in `.env`.
 
+## Product image uploads
+
+The Compose stack includes LocalStack with S3 enabled and persistent storage in the `localstack_data` volume. In `.env`, the local defaults are `AWS_S3_BUCKET=product-images-local`, `AWS_S3_ENDPOINT=http://localstack:4566`, and `AWS_S3_PUBLIC_ENDPOINT=http://localhost:4566`. ProductService uploads through the internal endpoint and returns URLs using the host endpoint so the browser can load them. LocalStack credentials can be `test` / `test` and are not real AWS credentials.
+
+Create the bucket once after starting LocalStack:
+
+```bash
+docker compose up -d localstack
+docker compose exec localstack awslocal s3 mb s3://product-images-local
+```
+
+Confirm it exists:
+
+```bash
+docker compose exec localstack awslocal s3 ls
+```
+
+Then start the application stack with `docker compose up -d --build`. ProductService reads `AWS_REGION`, `AWS_S3_BUCKET`, `AWS_S3_ENDPOINT`, and `AWS_S3_PUBLIC_ENDPOINT` from its environment. For real AWS, set the bucket and region, clear `AWS_S3_ENDPOINT` and `AWS_S3_PUBLIC_ENDPOINT`, and provide credentials through an attached IAM role or the AWS credential environment variables. The AWS identity needs `s3:PutObject` and `s3:DeleteObject` permissions. Product creation accepts multipart form data with an `Images` field (multiple files are allowed), alongside `Name`, `Description`, `Price`, and `Quantity`. Up to 10 JPEG, PNG, GIF, or WebP images are accepted, with a 10 MB limit per image. The product stores and returns the resulting S3 URLs.
+
 ## Start the full stack
 
 From the project root, run:
@@ -78,6 +99,14 @@ docker compose up -d --build
 ```
 
 This starts the databases, messaging infrastructure, gateway, and all application services.
+
+When using `start-services-local.sh`, stop its background application processes and Compose infrastructure with:
+
+```bash
+./stop-services.sh
+```
+
+This stops the locally launched frontend and .NET services and the Compose containers started by the local script. It preserves Docker containers and volumes; use `docker compose down` separately if you also want to remove the containers.
 
 To check the running containers:
 
