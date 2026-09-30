@@ -1,4 +1,6 @@
 using System.Text;
+using Amazon;
+using Amazon.S3;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -42,6 +44,24 @@ builder.Services.AddDbContext<ProductDbContext>(options =>
 
 builder.Services.AddSingleton<RedisService>();
 builder.Services.AddSingleton<RabbitMqLogPublisher>();
+builder.Services.AddSingleton<IAmazonS3>(_ =>
+{
+    var region = builder.Configuration["AWS_REGION"] ?? "us-east-1";
+    var endpoint = builder.Configuration["AWS_S3_ENDPOINT"];
+    var s3Config = new AmazonS3Config
+    {
+        RegionEndpoint = RegionEndpoint.GetBySystemName(region),
+        ForcePathStyle = true
+    };
+
+    if (!string.IsNullOrWhiteSpace(endpoint))
+    {
+        s3Config.ServiceURL = endpoint;
+    }
+
+    return new AmazonS3Client(s3Config);
+});
+builder.Services.AddScoped<S3ImageStorage>();
 
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
