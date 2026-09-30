@@ -1,3 +1,4 @@
+using LogService.Telemetry;
 using LogService.Services;
 using MongoDB.Driver;
 using OpenTelemetry.Exporter;
@@ -15,7 +16,8 @@ builder.Services.AddOpenTelemetry()
     {
         tracing
             .AddAspNetCoreInstrumentation(options => { options.RecordException = true; })
-            .AddHttpClientInstrumentation(options => { options.RecordException = true; });
+            .AddHttpClientInstrumentation(options => { options.RecordException = true; })
+            .AddSource(MongoDbTelemetry.SourceName);
 
         tracing.AddOtlpExporter(options =>
         {

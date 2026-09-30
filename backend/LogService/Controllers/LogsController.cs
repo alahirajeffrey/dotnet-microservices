@@ -1,6 +1,8 @@
 using LogService.Models;
+using LogService.Telemetry;
 using MongoDB.Driver;
 using Microsoft.AspNetCore.Mvc;
+using System.Diagnostics;
 
 namespace LogService.Controllers;
 
@@ -36,13 +38,24 @@ public class LogsController : ControllerBase
             ? FilterDefinition<LogEntry>.Empty
             : Builders<LogEntry>.Filter.Eq(x => x.ServiceName, serviceName);
 
-        var totalCount = await collection.CountDocumentsAsync(filter);
-        var logs = await collection
-            .Find(filter)
-            .Sort(Builders<LogEntry>.Sort.Descending(x => x.Timestamp))
-            .Skip((pageNumber - 1) * pageSize)
-            .Limit(pageSize)
-            .ToListAsync();
+        long totalCount;
+        using (var activity = MongoDbTelemetry.Source.StartActivity("mongodb count logs", ActivityKind.Client))
+        {
+            MongoDbTelemetry.SetDatabaseTags(activity, "count");
+            totalCount = await collection.CountDocumentsAsync(filter);
+        }
+
+        List<LogEntry> logs;
+        using (var activity = MongoDbTelemetry.Source.StartActivity("mongodb find logs", ActivityKind.Client))
+        {
+            MongoDbTelemetry.SetDatabaseTags(activity, "find");
+            logs = await collection
+                .Find(filter)
+                .Sort(Builders<LogEntry>.Sort.Descending(x => x.Timestamp))
+                .Skip((pageNumber - 1) * pageSize)
+                .Limit(pageSize)
+                .ToListAsync();
+        }
 
         var response = new
         {

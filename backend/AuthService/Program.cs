@@ -21,7 +21,8 @@ builder.Services.AddOpenTelemetry()
     {
         tracing
             .AddAspNetCoreInstrumentation(options => { options.RecordException = true; })
-            .AddHttpClientInstrumentation(options => { options.RecordException = true; });
+            .AddHttpClientInstrumentation(options => { options.RecordException = true; })
+            .AddEntityFrameworkCoreInstrumentation();
 
         tracing.AddOtlpExporter(options =>
         {

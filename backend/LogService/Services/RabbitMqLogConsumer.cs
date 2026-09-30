@@ -1,9 +1,11 @@
 using System.Text;
 using System.Text.Json;
 using LogService.Models;
+using LogService.Telemetry;
 using MongoDB.Driver;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
+using System.Diagnostics;
 
 namespace LogService.Services;
 
@@ -63,6 +65,8 @@ public class RabbitMqLogConsumer : BackgroundService
 
                 if (logEntry is not null)
                 {
+                    using var activity = MongoDbTelemetry.Source.StartActivity("mongodb insert log", ActivityKind.Client);
+                    MongoDbTelemetry.SetDatabaseTags(activity, "insert");
                     await collection.InsertOneAsync(logEntry, cancellationToken: stoppingToken);
                 }
             }
