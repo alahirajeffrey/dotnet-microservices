@@ -1,5 +1,8 @@
+using Microsoft.EntityFrameworkCore;
+
 namespace ProductService.Models;
 
+[Index(nameof(CreatedAt))]
 public class Product
 {
     public Guid Id {get; set;} = Guid.NewGuid();

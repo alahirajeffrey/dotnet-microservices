@@ -1,5 +1,8 @@
+using Microsoft.EntityFrameworkCore;
+
 namespace OrderService.Models;
 
+[Index(nameof(UserId), nameof(CreatedAt))]
 public class Order
 {
     public Guid Id { get; set; }
