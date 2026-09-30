@@ -20,6 +20,7 @@ ORDER_SERVICE_PORT="${ORDER_SERVICE_PORT}"
 PAYMENT_SERVICE_PORT="${PAYMENT_SERVICE_PORT}"
 LOG_SERVICE_PORT="${LOG_SERVICE_PORT}"
 GATEWAY_PORT="${GATEWAY_PORT}"
+FRONTEND_PORT="${FRONTEND_PORT:-5173}"
 
 LOG_DIR="$PWD/backend/.local-backend-logs"
 mkdir -p "$LOG_DIR"
@@ -125,11 +126,19 @@ nohup env \
   ReverseProxy__Clusters__orderCluster__Destinations__order__Address="http://localhost:${ORDER_SERVICE_PORT}/" \
   ReverseProxy__Clusters__paymentCluster__Destinations__payment__Address="http://localhost:${PAYMENT_SERVICE_PORT}/" \
   ReverseProxy__Clusters__logCluster__Destinations__log__Address="http://localhost:${LOG_SERVICE_PORT}/" \
+  Cors__AllowedOrigins__0="${FRONTEND_ORIGIN:-http://localhost:${FRONTEND_PORT}}" \
   dotnet run --project Gateway/Gateway.csproj --urls "http://localhost:${GATEWAY_PORT}" > "$LOG_DIR/gateway.log" 2>&1 &
+
+echo "Starting frontend..."
+cd ../frontend
+nohup env \
+  VITE_API_BASE_URL="${VITE_API_BASE_URL:-http://localhost:${GATEWAY_PORT}}" \
+  npm run dev -- --host 0.0.0.0 --port "${FRONTEND_PORT}" --strictPort > "$LOG_DIR/frontend.log" 2>&1 &
 
 echo "Infrastructure and app services are starting in the background."
 echo "Logs are stored in: $LOG_DIR"
 echo "Service URLs:"
+echo "  Frontend: http://localhost:${FRONTEND_PORT}"
 echo "  Gateway: http://localhost:${GATEWAY_PORT}"
 echo "  AuthService: http://localhost:${AUTH_SERVICE_PORT}"
 echo "  ProductService: http://localhost:${PRODUCT_SERVICE_PORT}"

@@ -7,6 +7,7 @@ docker compose up -d --build \
   rabbitmq \
   redis \
   gateway \
+  frontend \
   authservice \
   productservice \
   orderservice \
