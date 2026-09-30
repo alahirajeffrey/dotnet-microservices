@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.Http;
 
 namespace ProductService.DTOs;
 
@@ -15,4 +16,6 @@ public class CreateProductRequest
     [Required]
     [Range(1, int.MaxValue, ErrorMessage ="Quantity must be a positive number")]
     public int Quantity { get; set; }
+
+    public List<IFormFile> Images { get; set; } = [];
 }

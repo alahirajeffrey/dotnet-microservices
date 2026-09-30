@@ -12,4 +12,11 @@ public class ProductDbContext: DbContext
     }
 
    public DbSet<Product> Products {get; set;}
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<Product>()
+            .Property(product => product.ImageUrls)
+            .HasDefaultValueSql("ARRAY[]::text[]");
+    }
 }
