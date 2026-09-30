@@ -46,6 +46,19 @@ services:
     volumes:
       - mongo_data:/data/db
 
+  localstack:
+    image: localstack/localstack:4.0
+    container_name: localstack
+    restart: unless-stopped
+    environment:
+      SERVICES: s3
+      AWS_DEFAULT_REGION: ${AWS_REGION:-us-east-1}
+      PERSISTENCE: "1"
+    ports:
+      - "${LOCALSTACK_PORT:-4566}:4566"
+    volumes:
+      - localstack_data:/var/lib/localstack
+
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.110.0
     container_name: otel-collector
@@ -158,6 +171,7 @@ services:
     depends_on:
       - postgres
       - redis
+      - localstack
     ports:
       - "${PRODUCT_SERVICE_PORT:-5103}:8080"
     environment:
@@ -166,6 +180,12 @@ services:
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4317}
       ConnectionStrings__DefaultConnection: Host=${POSTGRES_HOST:-postgres};Port=${POSTGRES_PORT:-5432};Database=${PRODUCT_DB_NAME:-productdb};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
       Redis__ConnectionString: ${REDIS_HOST:-redis}:${REDIS_PORT:-6379}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_S3_BUCKET: ${AWS_S3_BUCKET:-product-images-local}
+      AWS_S3_ENDPOINT: ${AWS_S3_ENDPOINT:-http://localstack:4566}
+      AWS_S3_PUBLIC_ENDPOINT: ${AWS_S3_PUBLIC_ENDPOINT:-http://localhost:${LOCALSTACK_PORT:-4566}}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-test}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-test}
       RabbitMQ__HostName: ${RABBITMQ_HOST:-rabbitmq}
       RabbitMQ__UserName: ${RABBITMQ_DEFAULT_USER}
       RabbitMQ__Password: ${RABBITMQ_DEFAULT_PASS}
@@ -256,3 +276,4 @@ volumes:
   rabbitmq_data:
   mongo_data:
   tempo-data:
+  localstack_data:
