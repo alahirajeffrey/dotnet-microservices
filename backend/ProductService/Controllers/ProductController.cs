@@ -17,30 +17,51 @@ public class ProductController : ControllerBase
     private readonly RedisService _redisService;
     private readonly IConfiguration _configuration;
     private readonly RabbitMqLogPublisher _logPublisher;
+    private readonly S3ImageStorage _imageStorage;
 
-    public ProductController(ProductDbContext context, RedisService redisService, IConfiguration configuration, RabbitMqLogPublisher logPublisher)
+    public ProductController(ProductDbContext context, RedisService redisService, IConfiguration configuration, RabbitMqLogPublisher logPublisher, S3ImageStorage imageStorage)
     {
         _context = context;
         _redisService = redisService;
         _configuration = configuration;
         _logPublisher = logPublisher;
+        _imageStorage = imageStorage;
     }
 
     [HttpPost]
     [Authorize(Roles = "Admin")]
-    public async Task<ActionResult<Product>> CreateProduct([FromBody] CreateProductRequest request)
+    [RequestSizeLimit(105_000_000)]
+    public async Task<ActionResult<Product>> CreateProduct([FromForm] CreateProductRequest request)
     {
         if (!ModelState.IsValid)
         {
             return ValidationProblem(ModelState);
         }
 
+        if (request.Images.Count > 10)
+        {
+            return BadRequest("A maximum of 10 images can be uploaded per product.");
+        }
+
+        if (request.Images.Any(image => image.Length > 10 * 1024 * 1024))
+        {
+            return BadRequest("Each image must be 10 MB or smaller.");
+        }
+
+        if (request.Images.Any(image => !S3ImageStorage.AllowedContentTypes.Contains(image.ContentType)))
+        {
+            return BadRequest("Only JPEG, PNG, GIF, and WebP images are allowed.");
+        }
+
+        var imageUrls = await _imageStorage.UploadImagesAsync(request.Images, HttpContext.RequestAborted);
+
         var product = new Product
         {
             Name = request.Name,
             Description = request.Description,
             Price = request.Price,
-            Quantity = request.Quantity
+            Quantity = request.Quantity,
+            ImageUrls = imageUrls
         };
 
         _context.Products.Add(product);
