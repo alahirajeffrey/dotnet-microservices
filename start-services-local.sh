@@ -22,12 +22,12 @@ LOG_SERVICE_PORT="${LOG_SERVICE_PORT}"
 GATEWAY_PORT="${GATEWAY_PORT}"
 FRONTEND_PORT="${FRONTEND_PORT:-5173}"
 
-LOG_DIR="$PWD/backend/.local-backend-logs"
+LOG_DIR="$PWD/.local-logs"
 mkdir -p "$LOG_DIR"
 
 echo "Starting infrastructure services..."
 
-docker compose up -d postgres redis rabbitmq mongodb otel-collector tempo grafana --force-recreate
+docker compose up -d postgres redis rabbitmq mongodb otel-collector tempo grafana localstack
 sleep 5
 
 echo "Starting application services"
@@ -45,6 +45,7 @@ nohup env \
   Jwt__Issuer="${JWT_ISSUER:-AuthService}" \
   Jwt__Audience="${JWT_AUDIENCE:-Dotnet-Microservices}" \
   dotnet run --project AuthService/AuthService.csproj --urls "http://localhost:${AUTH_SERVICE_PORT}" > "$LOG_DIR/authservice.log" 2>&1 &
+echo "$!" > "$LOG_DIR/authservice.pid"
 
 sleep 2
 
@@ -62,6 +63,7 @@ nohup env \
   Jwt__Issuer="${JWT_ISSUER:-AuthService}" \
   Jwt__Audience="${JWT_AUDIENCE:-Dotnet-Microservices}" \
   dotnet run --project ProductService/ProductService.csproj --urls "http://localhost:${PRODUCT_SERVICE_PORT}" > "$LOG_DIR/productservice.log" 2>&1 &
+echo "$!" > "$LOG_DIR/productservice.pid"
 
 sleep 2
 
@@ -79,6 +81,7 @@ nohup env \
   Jwt__Issuer="${JWT_ISSUER:-AuthService}" \
   Jwt__Audience="${JWT_AUDIENCE:-Dotnet-Microservices}" \
   dotnet run --project OrderService/OrderService.csproj --urls "http://localhost:${ORDER_SERVICE_PORT}" > "$LOG_DIR/orderservice.log" 2>&1 &
+echo "$!" > "$LOG_DIR/orderservice.pid"
 
 sleep 2
 
@@ -98,6 +101,7 @@ nohup env \
   Jwt__Issuer="${JWT_ISSUER:-AuthService}" \
   Jwt__Audience="${JWT_AUDIENCE:-Dotnet-Microservices}" \
   dotnet run --project PaymentService/PaymentService.csproj --urls "http://localhost:${PAYMENT_SERVICE_PORT}" > "$LOG_DIR/paymentservice.log" 2>&1 &
+echo "$!" > "$LOG_DIR/paymentservice.pid"
 
 sleep 2
 
@@ -114,6 +118,7 @@ nohup env \
   RabbitMQ__UserName="${RABBITMQ_DEFAULT_USER}" \
   RabbitMQ__Password="${RABBITMQ_DEFAULT_PASS}" \
   dotnet run --project LogService/LogService.csproj --urls "http://localhost:${LOG_SERVICE_PORT}" > "$LOG_DIR/logservice.log" 2>&1 &
+echo "$!" > "$LOG_DIR/logservice.pid"
 
 sleep 2
 
@@ -128,12 +133,14 @@ nohup env \
   ReverseProxy__Clusters__logCluster__Destinations__log__Address="http://localhost:${LOG_SERVICE_PORT}/" \
   Cors__AllowedOrigins__0="${FRONTEND_ORIGIN:-http://localhost:${FRONTEND_PORT}}" \
   dotnet run --project Gateway/Gateway.csproj --urls "http://localhost:${GATEWAY_PORT}" > "$LOG_DIR/gateway.log" 2>&1 &
+echo "$!" > "$LOG_DIR/gateway.pid"
 
 echo "Starting frontend..."
 cd ../frontend
 nohup env \
   VITE_API_BASE_URL="${VITE_API_BASE_URL:-http://localhost:${GATEWAY_PORT}}" \
   npm run dev -- --host 0.0.0.0 --port "${FRONTEND_PORT}" --strictPort > "$LOG_DIR/frontend.log" 2>&1 &
+echo "$!" > "$LOG_DIR/frontend.pid"
 
 echo "Infrastructure and app services are starting in the background."
 echo "Logs are stored in: $LOG_DIR"
