@@ -45,26 +45,6 @@ The main local ports are:
 - PaymentService: http://localhost:5117
 - LogService: http://localhost:5200
 
-## Environment configuration
-
-Create a `.env` file in the project root with the required settings before starting Docker Compose.
-
-Example:
-
-```bash
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=postgres
-RABBITMQ_DEFAULT_USER=guest
-RABBITMQ_DEFAULT_PASS=guest
-JWT_KEY=your_jwt_key_here
-JWT_ISSUER=AuthService
-JWT_AUDIENCE=Dotnet-Microservices
-INTERNAL_API_SECRET=internal-secret
-PAYSTACK_SECRET_KEY=your_paystack_secret_key
-```
-
-These values are used by the Docker service definitions in [compose.yml](compose.yml).
-
 ## Start the full stack
 
 From the project root, run:
@@ -169,8 +149,6 @@ dotnet test microservices.slnx
 
 ## Todo
 
-- Add indexes to database
-- Ensure all environment variables are gotten from the environment especially the otel exporter env
-- Ensure migration runs whenever all the services start
-- Extend opentelemetry to include database calls as well as external API calls
-- Review the startup scripts to ensure the proper directories are set
+- add git action that runs sast and dast when a push is made
+- write terraform to deploy backend to aws (use localstack to test)
+- write git action to deploy code
